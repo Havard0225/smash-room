@@ -33,7 +33,7 @@ const objects = [
     broken: "./img/broken-glass-botle.jpg",
     soundId: "sound-vase",
     points: 4,
-  }
+  },
 ];
 
 const smashArea = document.getElementById("smash-area");
@@ -51,7 +51,6 @@ let timerInterval;
 let smashedCount = 0;
 let totalObjects = 0;
 
-// Last beste score fra localStorage
 let bestScore = localStorage.getItem("smashBestScore") || 0;
 bestScoreText.textContent = bestScore;
 
@@ -79,57 +78,83 @@ function createSmashItem(obj) {
   });
 
   smashArea.appendChild(container);
+
+  // Tilfeldig plassering
+  placeItemRandomly(container);
+
+  // Gi tilfeldig hastighet (retning og fart)
+  container.dx = (Math.random() * 2 - 1) * 2; // mellom -2 og 2
+  container.dy = (Math.random() * 2 - 1) * 2;
+
   return container;
 }
 
-function smashObject(container, imgWhole, imgBroken, obj) {
-  // Spill lyd
-  const sound = document.getElementById(obj.soundId);
-  if(sound) {
-    sound.currentTime = 0;
-    sound.play();
-  }
+function placeItemRandomly(item) {
+  const maxX = smashArea.clientWidth - item.offsetWidth;
+  const maxY = smashArea.clientHeight - item.offsetHeight;
 
-  // Bytt bilde til knust
+  let isOverlapping;
+  let randomX, randomY;
+
+  let tries = 0;
+  do {
+    tries++;
+    if (tries > 100) break;
+
+    randomX = Math.floor(Math.random() * maxX);
+    randomY = Math.floor(Math.random() * maxY);
+
+    item.style.left = `${randomX}px`;
+    item.style.top = `${randomY}px`;
+
+    isOverlapping = Array.from(smashArea.children).some((otherItem) => {
+      if (otherItem === item) return false;
+      return isColliding(item, otherItem);
+    });
+  } while (isOverlapping);
+}
+
+function isColliding(a, b) {
+  const r1 = a.getBoundingClientRect();
+  const r2 = b.getBoundingClientRect();
+  return !(
+    r1.right < r2.left ||
+    r1.left > r2.right ||
+    r1.bottom < r2.top ||
+    r1.top > r2.bottom
+  );
+}
+
+function smashObject(container, imgWhole, imgBroken, obj) {
   imgWhole.style.display = "none";
   imgBroken.style.display = "block";
-
-  // Legg på smash animasjon på det knuste bildet
   imgBroken.style.animation = "smashAnim 0.6s forwards";
 
-  // Rist skjermen litt
   document.body.classList.add("shake");
   setTimeout(() => document.body.classList.remove("shake"), 300);
 
-  // Oppdater score og teller
   score += obj.points;
   smashedCount++;
   counter.textContent = score;
 
-  // Hvis alle objekter er knust, gå til neste nivå
   if (smashedCount >= totalObjects) {
     clearInterval(timerInterval);
     nextLevel();
   }
 }
 
-// Generer objekter til nivå
 function generateObjects(level) {
   smashArea.innerHTML = "";
   smashedCount = 0;
-
-  // Antall objekter øker med nivå, mellom 5 og 24
   const count = Math.min(5 + level * 2, 24);
   totalObjects = count;
 
   for (let i = 0; i < count; i++) {
-    // Velg tilfeldig objekt
     const obj = objects[Math.floor(Math.random() * objects.length)];
     createSmashItem(obj);
   }
 }
 
-// Timer funksjon
 function startTimer() {
   timeLeft = 10;
   timerText.textContent = timeLeft;
@@ -143,7 +168,6 @@ function startTimer() {
   }, 1000);
 }
 
-// Neste nivå
 function nextLevel() {
   message.textContent = `Bra jobbet! Går til nivå ${level + 1}`;
   level++;
@@ -156,7 +180,6 @@ function nextLevel() {
   }, 2000);
 }
 
-// Lagre highscore i localStorage
 function saveBestScore() {
   if (score > bestScore) {
     bestScore = score;
@@ -165,7 +188,6 @@ function saveBestScore() {
   }
 }
 
-// Avslutt spill
 function endGame() {
   saveBestScore();
   message.textContent = `Tid ute! Du fikk ${score} poeng.`;
@@ -186,6 +208,41 @@ restartBtn.addEventListener("click", () => {
   startTimer();
 });
 
-// Start spillet
+// Animasjonssimulering
+function animateItems() {
+  const items = Array.from(document.querySelectorAll(".item"));
+  const bounds = smashArea.getBoundingClientRect();
+
+  items.forEach(item => {
+    let x = item.offsetLeft + item.dx;
+    let y = item.offsetTop + item.dy;
+
+    // Sprett fra vegger
+    if (x <= 0 || x + item.offsetWidth >= smashArea.clientWidth) {
+      item.dx *= -1;
+    }
+    if (y <= 0 || y + item.offsetHeight >= smashArea.clientHeight) {
+      item.dy *= -1;
+    }
+
+    item.style.left = `${x}px`;
+    item.style.top = `${y}px`;
+  });
+
+  // Kollisjoner mellom objekter
+  for (let i = 0; i < items.length; i++) {
+    for (let j = i + 1; j < items.length; j++) {
+      if (isColliding(items[i], items[j])) {
+        [items[i].dx, items[j].dx] = [items[j].dx, items[i].dx];
+        [items[i].dy, items[j].dy] = [items[j].dy, items[i].dy];
+      }
+    }
+  }
+
+  requestAnimationFrame(animateItems);
+}
+
+// Start spillet og animasjonen
 generateObjects(level);
 startTimer();
+animateItems();
